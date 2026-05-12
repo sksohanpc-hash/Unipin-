@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voucher Code Manager</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#141e30">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial,sans-serif;
+}
+
+body{
+    background:linear-gradient(135deg,#141e30,#243b55);
+    min-height:100vh;
+    padding:20px;
+}
+
+.container{
+    max-width:950px;
+    margin:auto;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(12px);
+    border-radius:22px;
+    padding:25px;
+    box-shadow:0 0 25px rgba(0,0,0,0.4);
+}
+
+h1{
+    text-align:center;
+    color:white;
+    margin-bottom:20px;
+    font-size:34px;
+}
+
+textarea{
+    width:100%;
+    height:500px;
+    border:none;
+    border-radius:18px;
+    padding:20px;
+    font-size:17px;
+    font-weight:bold;
+    line-height:1.7;
+    resize:none;
+    outline:none;
+    background:white;
+    color:black;
+    overflow:auto;
+}
+
+.buttons{
+    display:flex;
+    gap:15px;
+    margin-top:20px;
+    flex-wrap:wrap;
+}
+
+button{
+    flex:1;
+    min-width:180px;
+    padding:16px;
+    border:none;
+    border-radius:15px;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.count-btn{
+    background:#00c853;
+    color:white;
+}
+
+.copy-btn{
+    background:#2962ff;
+    color:white;
+}
+
+.clear-btn{
+    background:#ff1744;
+    color:white;
+}
+
+button:hover{
+    transform:scale(1.03);
+}
+
+.result{
+    margin-top:22px;
+    text-align:center;
+    color:#ffeb3b;
+    font-size:30px;
+    font-weight:bold;
+}
+
+.preview{
+    margin-top:18px;
+    text-align:center;
+    color:#00ffcc;
+    font-size:24px;
+    font-weight:bold;
+    word-break:break-word;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Voucher Code Manager</h1>
+
+    <textarea id="codeBox" placeholder="Paste Voucher Codes Here..."></textarea>
+
+    <div class="buttons">
+
+        <button class="count-btn" onclick="updateCount()">
+            Count Codes
+        </button>
+
+        <button class="copy-btn" onclick="copyCodes()">
+            Copy All Codes
+        </button>
+
+        <button class="clear-btn" onclick="clearCodes()">
+            Clear All
+        </button>
+
+    </div>
+
+    <div class="result" id="result">
+        Total Codes: 0
+    </div>
+
+    <div class="preview" id="preview">
+        Voucher Type: None
+    </div>
+
+</div>
+
+<script>
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+}
+  
+
+const textarea = document.getElementById("codeBox");
+
+
+// কোড টাইপ অনুযায়ী নাম
+const voucherMap = {
+
+    "BDMB-T-S":"UniPin Voucher 20 BDT",
+    "UPBD-Q-S":"UniPin Voucher 20 BDT",
+
+    "BDMB-U-S":"UniPin Voucher 36 BDT",
+    "UPBD-R-S":"UniPin Voucher 36 BDT",
+
+    "BDMB-J-S":"UniPin Voucher 80 BDT",
+    "UPBD-G-S":"UniPin Voucher 80 BDT",
+
+    "BDMB-I-S":"UniPin Voucher 160 BDT",
+    "UPBD-F-S":"UniPin Voucher 160 BDT",
+
+    "BDMB-K-S":"UniPin Voucher 405 BDT",
+    "UPBD-H-S":"UniPin Voucher 405 BDT",
+
+    "BDMB-L-S":"UniPin Voucher 810 BDT",
+    "UPBD-I-S":"UniPin Voucher 810 BDT",
+
+    "BDMB-M-S":"UniPin Voucher 1625 BDT",
+    "UPBD-J-S":"UniPin Voucher 1625 BDT",
+
+    "BDMB-Q-S":"UniPin Voucher 161 BDT",
+    "UPBD-N-S":"UniPin Voucher 161 BDT",
+
+    "BDMB-S-S":"UniPin Voucher 800 BDT",
+    "UPBD-P-S":"UniPin Voucher 800 BDT"
+
+};
+
+
+
+// সম্পূর্ণ কোড বের করবে
+function extractCodes(text){
+
+    const regex = /(BDMB|UPBD)-[A-Z]-S-\d+\s+\d{4}-\d{4}-\d{4}-\d{4}/g;
+
+    const matches = text.match(regex);
+
+    return matches ? matches : [];
+}
+
+
+
+// কোন টাইপ সেটা বের করবে
+function detectVoucherType(code){
+
+    const match = code.match(/^((BDMB|UPBD)-[A-Z]-S)/);
+
+    if(match){
+
+        const prefix = match[1];
+
+        return voucherMap[prefix] || "Unknown Voucher";
+    }
+
+    return "Unknown Voucher";
+}
+
+
+
+// পেস্ট সিস্টেম
+textarea.addEventListener("paste", function(e){
+
+    e.preventDefault();
+
+    const pastedText = (e.clipboardData || window.clipboardData).getData("text");
+
+    const codes = extractCodes(pastedText);
+
+    if(codes.length === 0){
+        return;
+    }
+
+    let current = textarea.value.trim();
+
+    if(current !== ""){
+        textarea.value = current + "\n" + codes.join("\n");
+    }else{
+        textarea.value = codes.join("\n");
+    }
+
+    removeEmptyLines();
+
+    moveCursorToEnd();
+
+    updateCount();
+});
+
+
+
+// ইনপুট সিস্টেম
+textarea.addEventListener("input", function(){
+
+    const lines = textarea.value.split("\n");
+
+    let finalCodes = [];
+
+    lines.forEach(line => {
+
+        const match = line.match(/(BDMB|UPBD)-[A-Z]-S-\d+\s+\d{4}-\d{4}-\d{4}-\d{4}/);
+
+        if(match){
+            finalCodes.push(match[0]);
+        }
+
+    });
+
+    textarea.value = finalCodes.join("\n");
+
+    moveCursorToEnd();
+
+    updateCount();
+});
+
+
+
+// খালি লাইন মুছে ফেলবে
+function removeEmptyLines(){
+
+    textarea.value = textarea.value
+        .split("\n")
+        .filter(line => line.trim() !== "")
+        .join("\n");
+}
+
+
+
+// কারসার নিচে যাবে
+function moveCursorToEnd(){
+
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+}
+
+
+
+// কাউন্ট
+function updateCount(){
+
+    const text = textarea.value.trim();
+
+    const total = text === ""
+        ? 0
+        : text.split("\n").filter(x => x.trim() !== "").length;
+
+    document.getElementById("result").innerHTML =
+        "Total Codes: " + total;
+
+    updatePreview();
+}
+
+
+
+// উপরের নাম দেখাবে
+function updatePreview(){
+
+    const text = textarea.value.trim();
+
+    if(text === ""){
+
+        document.getElementById("preview").innerHTML =
+            "Voucher Type: None";
+
+        return;
+    }
+
+    const firstCode = text.split("\n")[0];
+
+    const voucherName = detectVoucherType(firstCode);
+
+    const total = text.split("\n").length;
+
+    document.getElementById("preview").innerHTML =
+        voucherName + " x " + total;
+}
+
+
+
+// কপি
+function copyCodes(){
+
+    const text = textarea.value.trim();
+
+    if(text === ""){
+        alert("No Codes Found!");
+        return;
+    }
+
+    const lines = text.split("\n").filter(x => x.trim() !== "");
+
+    const voucherName = detectVoucherType(lines[0]);
+
+    const header = voucherName + " x " + lines.length;
+
+    const finalText =
+        header + "\n\n" + lines.join("\n");
+
+    navigator.clipboard.writeText(finalText);
+
+    alert("Copied Successfully!");
+}
+
+
+
+// ক্লিয়ার
+function clearCodes(){
+
+    textarea.value = "";
+
+    updateCount();
+
+    textarea.focus();
+}
+
+
+
+updatePreview();
+
+</script>
+
+</body>
+</html>
